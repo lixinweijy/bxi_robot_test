@@ -1,0 +1,56 @@
+#!/bin/bash
+# NVIDIA/Jazzy: one owner of motor power and the complete ROS launch group.
+exec 9>/run/lock/bxi-motor-ros.lock || exit 1
+if [[ "${1:-}" == --stop ]]; then
+  # The --stop invocation is deliberately excluded from this process match.
+  pkill -TERM -f '^/bin/bash /usr/local/bin/bxi-motor-ros( launch|$)' || [[ $? == 1 ]] || exit 1
+  if ! flock -w 8 9; then
+    /usr/local/sbin/bxi-motor-power off
+    echo "等待 ROS 程序退出超时，请检查残留进程" >&2
+    exit 1
+  fi
+  exec /usr/local/sbin/bxi-motor-power off
+fi
+[[ $# == 0 || "$1" == launch ]] || { echo "用法: $0 [launch PACKAGE FILE [参数...]] | --stop" >&2; exit 2; }
+flock -n 9 || { echo "已有一个电机 ROS 程序在运行" >&2; exit 1; }
+
+# ROS setup scripts are not nounset-safe.
+source /opt/ros/jazzy/setup.bash &&
+source /opt/bxi/bxi_ros2_pkg/local_setup.bash &&
+source /opt/bxi/bxi_rl_controller_ros2_example/install/local_setup.bash || exit 1
+set -euo pipefail
+export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
+export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
+export ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-1}"
+export ROS_AUTOMATIC_DISCOVERY_RANGE="${ROS_AUTOMATIC_DISCOVERY_RANGE:-LOCALHOST}"
+
+child=
+cleanup() {
+  status=$?
+  trap - EXIT HUP INT TERM
+  if [[ -n "$child" ]]; then
+    kill -TERM -- "-$child" 2>/dev/null || true
+    for _ in {1..20}; do
+      kill -0 -- "-$child" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL -- "-$child" 2>/dev/null || true
+    wait "$child" 2>/dev/null || true
+  fi
+  /usr/local/sbin/bxi-motor-power off || { echo "警告：关闭电机电源失败" >&2; status=1; }
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+/usr/local/sbin/bxi-motor-power on
+sleep "${BXI_MOTOR_POWER_ON_DELAY:-0.5}"
+
+if [[ $# == 0 ]]; then
+  set -- launch hardware_elf3 hardware_elf3_launch.py
+fi
+# Close the lock fd in children so a stray child cannot retain ownership.
+setsid ros2 "$@" 9>&- &
+child=$!
+wait "$child"

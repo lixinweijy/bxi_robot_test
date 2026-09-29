@@ -1,0 +1,12 @@
+# .*
+!.vscode/
+.vscode/settings.json
+build/
+install/
+log/
+.build-backups/
+!.gitignore
+# proxsuite/
+bxi_hw_release/
+__pycache__/
+MUJOCO_LOG.TXT

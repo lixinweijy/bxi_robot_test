@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+
+case "${1:-}" in
+  on) command=o ;;
+  off) command=c ;;
+  *) echo "用法: $0 on|off" >&2; exit 2 ;;
+esac
+
+device="${BXI_MOTOR_POWER_DEVICE:-/dev/ttyMotorPower}"
+# Only the default device may fall back; a mistyped override must fail closed.
+if [[ -z "${BXI_MOTOR_POWER_DEVICE:-}" && ! -e "$device" ]]; then
+  device=/dev/ttyACM0
+fi
+[[ -c "$device" ]] || { echo "找不到电机电源串口: $device" >&2; exit 1; }
+
+exec 9>/run/lock/bxi-motor-power.lock
+flock -w 3 9
+exec 3<>"$device"
+stty -F "$device" 921600 cs8 -cstopb -parenb raw -echo -crtscts -ixon -ixoff -hupcl
+sleep "${BXI_MOTOR_POWER_OPEN_DELAY:-0.5}"
+printf '%s' "$command" >&3
+sleep 0.1

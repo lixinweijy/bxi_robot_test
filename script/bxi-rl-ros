@@ -1,0 +1,4 @@
+#!/bin/bash
+exec /usr/local/bin/bxi-motor-ros launch bxi_example_py_elf3 \
+  example_launch_unified_hw.launch.py start_remote_controller:=false \
+  control_rate_hz:=200.0 motion_button_mode:=momentary "$@"

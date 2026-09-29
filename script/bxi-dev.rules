@@ -1,0 +1,5 @@
+SUBSYSTEM=="iio", KERNEL=="iio:device*", ATTR{name}=="adis16500", GROUP:="imu", MODE:="0660", SYMLINK+="bxi_imu"
+KERNEL=="ttyACM*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", MODE:="0660", SYMLINK+="ttyBAT", SYMLINK+="ttyMotorPower"
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="js*", ATTRS{id/vendor}=="20d6", ATTRS{name}=="*Battle Dragon*", ATTRS{capabilities/abs}=="30627", MODE:="0660", RUN+="/usr/local/bin/bxi-battle-dragon-link add %k"
+ACTION=="change", SUBSYSTEM=="input", KERNEL=="js*", ATTRS{id/vendor}=="20d6", ATTRS{name}=="*Battle Dragon*", ATTRS{capabilities/abs}=="30627", MODE:="0660", RUN+="/usr/local/bin/bxi-battle-dragon-link add %k"
+ACTION=="remove", SUBSYSTEM=="input", KERNEL=="js*", RUN+="/usr/local/bin/bxi-battle-dragon-link remove %k"
